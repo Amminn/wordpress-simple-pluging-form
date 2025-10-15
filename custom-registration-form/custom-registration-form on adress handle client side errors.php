@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Custom Registration Form CRM
  * Description:       A powerful plugin that creates a custom form and a full-featured CRM with multi-image support and Import/Export.
- * Version:           6.7
+ * Version:           6.8
  * Author:            Your Name
  */
 
@@ -16,7 +16,84 @@ function custom_registration_create_crm_tables() { global $wpdb; $charset_collat
 register_activation_hook(__FILE__, 'custom_registration_create_crm_tables');
 function custom_registration_form_shortcode() { ob_start(); echo '<style>#custom-registration-form{max-width:600px;margin:0 auto;padding:25px;border:1px solid #ddd;border-radius:5px;background-color:#f9f9f9;box-shadow:0 2px 5px rgba(0,0,0,0.05)}#custom-registration-form .form-group{margin-bottom:20px}#custom-registration-form label{display:block;margin-bottom:8px;font-weight:bold;color:#333}#custom-registration-form input[type=text],#custom-registration-form textarea,#custom-registration-form input[type=file]{width:100%;padding:12px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box}#custom-registration-form .form-submit input[type=submit]{background-color:#0073aa;color:#fff;padding:12px 25px;border:none;border-radius:4px;cursor:pointer;font-size:16px;transition:background-color .3s ease}.crf-message{padding:15px;margin-bottom:20px;border-radius:4px;max-width:600px;margin-left:auto;margin-right:auto}.crf-message.success{color:#155724;background-color:#d4edda;border:1px solid #c3e6cb}.crf-message.error{color:#721c24;background-color:#f8d7da;border:1px solid #f5c6cb}</style>'; if (isset($_GET['submission-status'])) { switch ($_GET['submission-status']) { case 'success': echo '<div class="crf-message success">The form was sent! We will get back to you soon.</div>'; break; case 'db_error': echo '<div class="crf-message error">There was a problem saving your submission. Please contact the site administrator.</div>'; break; case 'recaptcha_failed': echo '<div class="crf-message error">reCAPTCHA verification failed. Please try again.</div>'; break; case 'error': echo '<div class="crf-message error">There was an error with your submission. Please check the required fields.</div>'; break; } } $site_key = get_option('crf_recaptcha_site_key'); ?> <form id="custom-registration-form" action="" method="post" enctype="multipart/form-data"> <div class="form-group"><label for="name">Name <span style="color:red;">*</span></label><input type="text" name="name" id="name" required maxlength="255"></div> <div class="form-group"><label for="address">Address <span style="color:red;">*</span></label><input type="text" name="address" id="address" required maxlength="1000"></div> <div class="form-group"><label for="phone_number">Phone Number <span style="color:red;">*</span></label><input type="text" name="phone_number" id="phone_number" required maxlength="50"></div> <div class="form-group"><label for="note">Note</label><textarea name="note" id="note" rows="4" maxlength="2000"></textarea></div> <div class="form-group"><label for="profile_image">Profile Images (Max 2)</label><input type="file" name="profile_image[]" id="profile_image" accept="image/jpeg,image/png,image/gif" multiple></div> <?php wp_nonce_field('custom_form_submit_action', 'custom_form_nonce'); ?> <input type="hidden" name="custom_registration_form_submitted" value="1"> <?php if (!empty($site_key)): ?> <div class="form-group"> <div class="g-recaptcha" data-sitekey="<?php echo esc_attr($site_key); ?>"></div> </div> <script src="https://www.google.com/recaptcha/api.js" async defer></script> <?php endif; ?> <div id="crf-validation-message" class="crf-message error" style="display:none;"></div> <div class="form-submit"><input type="submit" name="submit" value="Register"></div> </form> <script> document.addEventListener('DOMContentLoaded', function() { const form = document.getElementById('custom-registration-form'); const errorDiv = document.getElementById('crf-validation-message'); form.addEventListener('submit', function(event) { let errors = []; errorDiv.innerHTML = ''; const phoneInput = document.getElementById('phone_number'); const phoneRegex = /^[0-9\s\+\-\(\)]+$/; if (phoneInput.value && !phoneRegex.test(phoneInput.value)) { errors.push('Please enter a valid phone number.'); } if (document.getElementById('profile_image').files.length > 2) { errors.push('You can upload a maximum of two images.'); } if (errors.length > 0) { event.preventDefault(); let errorHtml = '<ul>'; errors.forEach(function(error) { errorHtml += '<li>' + error + '</li>'; }); errorHtml += '</ul>'; errorDiv.innerHTML = errorHtml; errorDiv.style.display = 'block'; } else { errorDiv.style.display = 'none'; } }); }); </script> <?php return ob_get_clean(); }
 add_shortcode('custom_registration_form', 'custom_registration_form_shortcode');
-function handle_custom_form_submission() { if (!isset($_POST['custom_registration_form_submitted'])) { return; } $current_page_url = strtok($_SERVER['REQUEST_URI'], '?'); if (!isset($_POST['custom_form_nonce']) || !wp_verify_nonce($_POST['custom_form_nonce'], 'custom_form_submit_action')) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; } if (empty($_POST['name']) || empty($_POST['address']) || empty($_POST['phone_number'])) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; } $secret_key = get_option('crf_recaptcha_secret_key'); if (!empty($secret_key)) { if (!isset($_POST['g-recaptcha-response']) || empty($_POST['g-recaptcha-response'])) { wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url)); exit; } $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', ['body' => ['secret' => $secret_key, 'response' => sanitize_text_field($_POST['g-recaptcha-response']), 'remoteip' => $_SERVER['REMOTE_ADDR'],],]); if (is_wp_error($response)) { wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url)); exit; } $response_body = json_decode(wp_remote_retrieve_body($response)); if (!$response_body || !$response_body->success) { wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url)); exit; } } $image_urls = []; if (isset($_FILES['profile_image']) && !empty($_FILES['profile_image']['name'][0])) { if (count($_FILES['profile_image']['name']) > 2) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; } if (!function_exists('wp_handle_upload')) { require_once(ABSPATH . 'wp-admin/includes/file.php'); } $files = $_FILES['profile_image']; foreach ($files['name'] as $key => $value) { if ($files['name'][$key]) { $file = ['name' => $files['name'][$key], 'type' => $files['type'][$key], 'tmp_name' => $files['tmp_name'][$key], 'error' => $files['error'][$key], 'size' => $files['size'][$key]]; $movefile = wp_handle_upload($file, ['test_form' => false]); if ($movefile && !isset($movefile['error'])) { $image_urls[] = $movefile['url']; } } } } global $wpdb; $table_name = $wpdb->prefix . 'custom_registrations'; $data_to_insert = ['name' => sanitize_text_field($_POST['name']), 'address' => sanitize_text_field($_POST['address']), 'phone_number' => sanitize_text_field($_POST['phone_number']), 'note' => isset($_POST['note']) ? sanitize_textarea_field($_POST['note']) : '', 'image_url' => implode(',', $image_urls)]; $result = $wpdb->insert($table_name, $data_to_insert); if ($result === false) { wp_safe_redirect(add_query_arg('submission-status', 'db_error', $current_page_url)); exit; } wp_safe_redirect(add_query_arg('submission-status', 'success', $current_page_url)); exit; }
+
+function handle_custom_form_submission() {
+    if (!isset($_POST['custom_registration_form_submitted'])) {
+        return;
+    }
+    $current_page_url = strtok($_SERVER['REQUEST_URI'], '?');
+    if (!isset($_POST['custom_form_nonce']) || !wp_verify_nonce($_POST['custom_form_nonce'], 'custom_form_submit_action')) {
+        wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url));
+        exit;
+    }
+    if (empty($_POST['name']) || empty($_POST['address']) || empty($_POST['phone_number'])) {
+        wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url));
+        exit;
+    }
+    $secret_key = get_option('crf_recaptcha_secret_key');
+    if (!empty($secret_key)) {
+        if (!isset($_POST['g-recaptcha-response']) || empty($_POST['g-recaptcha-response'])) {
+            wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url));
+            exit;
+        }
+        $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', ['body' => ['secret' => $secret_key, 'response' => sanitize_text_field($_POST['g-recaptcha-response']), 'remoteip' => $_SERVER['REMOTE_ADDR'],],]);
+        if (is_wp_error($response)) {
+            wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url));
+            exit;
+        }
+        $response_body = json_decode(wp_remote_retrieve_body($response));
+        if (!$response_body || !$response_body->success) {
+            wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url));
+            exit;
+        }
+    }
+    $image_urls = [];
+    if (isset($_FILES['profile_image']) && !empty($_FILES['profile_image']['name'][0])) {
+        if (count($_FILES['profile_image']['name']) > 2) {
+            wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url));
+            exit;
+        }
+        if (!function_exists('wp_handle_upload')) {
+            require_once(ABSPATH . 'wp-admin/includes/file.php');
+        }
+        $files = $_FILES['profile_image'];
+        foreach ($files['name'] as $key => $value) {
+            if ($files['name'][$key]) {
+                $file = ['name' => $files['name'][$key], 'type' => $files['type'][$key], 'tmp_name' => $files['tmp_name'][$key], 'error' => $files['error'][$key], 'size' => $files['size'][$key]];
+                $movefile = wp_handle_upload($file, ['test_form' => false]);
+                if ($movefile && !isset($movefile['error'])) {
+                    $image_urls[] = $movefile['url'];
+                }
+            }
+        }
+    }
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'custom_registrations';
+    $data_to_insert = ['name' => sanitize_text_field($_POST['name']), 'address' => sanitize_text_field($_POST['address']), 'phone_number' => sanitize_text_field($_POST['phone_number']), 'note' => isset($_POST['note']) ? sanitize_textarea_field($_POST['note']) : '', 'image_url' => implode(',', $image_urls)];
+    $result = $wpdb->insert($table_name, $data_to_insert);
+
+    if ($result) {
+        // Send email notification
+        $to = get_option('admin_email');
+        $subject = 'New Form Submission Received';
+        $body = "A new submission has been received.\n\n" .
+                "Name: " . sanitize_text_field($_POST['name']) . "\n" .
+                "Address: " . sanitize_text_field($_POST['address']) . "\n" .
+                "Phone Number: " . sanitize_text_field($_POST['phone_number']) . "\n" .
+                "Note: " . (isset($_POST['note']) ? sanitize_textarea_field($_POST['note']) : 'N/A');
+        wp_mail($to, $subject, $body);
+
+        // Set a transient to indicate a new submission
+        set_transient('crf_new_submission', true, 30 * MINUTE_IN_SECONDS);
+    }
+
+    if ($result === false) {
+        wp_safe_redirect(add_query_arg('submission-status', 'db_error', $current_page_url));
+        exit;
+    }
+    wp_safe_redirect(add_query_arg('submission-status', 'success', $current_page_url));
+    exit;
+}
 add_action('init', 'handle_custom_form_submission');
 function crf_handle_import_export() { if (!current_user_can('manage_options')) { return; } if (isset($_GET['action']) && $_GET['action'] == 'export_csv' && isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'crf_export_nonce')) { global $wpdb; $data = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}custom_registrations", ARRAY_A); if ($data) { header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename=submissions_export_' . date('Y-m-d') . '.csv'); $output = fopen('php://output', 'w'); fputcsv($output, array_keys($data[0])); foreach ($data as $row) { fputcsv($output, $row); } fclose($output); } exit; } if (isset($_POST['action']) && $_POST['action'] == 'import_csv' && isset($_FILES['import_csv_file'])) { if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'crf_import_nonce')) { wp_die('Security check failed.'); } $file = $_FILES['import_csv_file']; if ($file['type'] == 'text/csv' && $file['error'] == UPLOAD_ERR_OK) { global $wpdb; $handle = fopen($file['tmp_name'], 'r'); $header = fgetcsv($handle); $count = 0; while (($row = fgetcsv($handle)) !== false) { $data = array_combine($header, $row); $wpdb->insert($wpdb->prefix . 'custom_registrations', ['name' => isset($data['name']) ? sanitize_text_field($data['name']) : '', 'address' => isset($data['address']) ? sanitize_text_field($data['address']) : '', 'phone_number' => isset($data['phone_number']) ? sanitize_text_field($data['phone_number']) : '', 'note' => isset($data['note']) ? sanitize_textarea_field($data['note']) : '', 'image_url' => isset($data['image_url']) ? sanitize_text_field($data['image_url']) : '', 'status' => isset($data['status']) ? sanitize_text_field($data['status']) : 'New', 'tags' => isset($data['tags']) ? sanitize_text_field($data['tags']) : '', 'flag' => isset($data['flag']) ? sanitize_text_field($data['flag']) : 'ok']); $count++; } fclose($handle); set_transient('crf_import_notice', "Successfully imported {$count} submissions.", 30); } else { set_transient('crf_import_notice', "Error: Please upload a valid CSV file.", 30); } wp_safe_redirect(admin_url('admin.php?page=custom-registrations')); exit; } }
 add_action('admin_init', 'crf_handle_import_export');
@@ -24,13 +101,28 @@ add_action('admin_init', 'crf_handle_import_export');
 // =================================================================================
 // 5. ADMIN AREA (CRM PAGE)
 // =================================================================================
-function custom_registration_admin_menu() { add_menu_page('Submissions', 'Submissions', 'manage_options', 'custom-registrations', 'custom_registrations_page_content', 'dashicons-list-view', 25); }
+function custom_registration_admin_menu() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'custom_registrations';
+    $new_submission_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'New'");
+    $menu_title = 'Submissions';
+    if ($new_submission_count > 0) {
+        $menu_title .= ' <span class="awaiting-mod"><span class="pending-count">' . $new_submission_count . '</span></span>';
+    }
+    add_menu_page('Submissions', $menu_title, 'manage_options', 'custom-registrations', 'custom_registrations_page_content', 'dashicons-list-view', 25);
+}
 add_action('admin_menu', 'custom_registration_admin_menu');
+
 function crf_show_import_notice() { if ($notice = get_transient('crf_import_notice')) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($notice) . '</p></div>'; delete_transient('crf_import_notice'); } }
 add_action('admin_notices', 'crf_show_import_notice');
 
 function custom_registrations_page_content() {
+    // When the admin views the page, reset the counter by updating the status of 'New' submissions
     global $wpdb;
+    $table_name = $wpdb->prefix . 'custom_registrations';
+    $wpdb->update($table_name, ['status' => 'Viewed'], ['status' => 'New']);
+    
+    // ... rest of the page content function is the same
     $table_submissions = $wpdb->prefix . 'custom_registrations';
     $current_flag_view = isset($_GET['flag']) ? sanitize_text_field($_GET['flag']) : 'ok';
     $where_clauses[] = $wpdb->prepare("flag = %s", $current_flag_view);
@@ -56,8 +148,8 @@ function custom_registrations_page_content() {
                 <tr><th>Name</th><th>Address</th><th>Note</th><th>Images</th><th>Contact</th><th>Tags</th><th>Status</th><th>Submitted</th><th>Actions</th></tr>
             </thead>
             <tbody>
-                <?php if (empty($results)) : ?> 
-                    <tr><td colspan="9">No submissions found.</td></tr> 
+                <?php if (empty($results)) : ?>
+                    <tr><td colspan="9">No submissions found.</td></tr>
                 <?php else : foreach ($results as $row) : ?>
                 <tr>
                     <td><strong><?php echo esc_html($row->name); ?></strong></td>
@@ -71,7 +163,7 @@ function custom_registrations_page_content() {
                     <td class="action-buttons">
                         <button type="button" class="button button-secondary button-small view-notes-btn" data-id="<?php echo esc_attr($row->id); ?>">Notes</button>
                         <button type="button" class="button button-secondary button-small edit-tags-btn" data-id="<?php echo esc_attr($row->id); ?>" data-tags="<?php echo esc_attr($row->tags); ?>">Tags</button>
-                        
+
                         <!-- MODIFICATION START: Conditionally show Spam/Not Spam buttons -->
                         <?php if ($current_flag_view === 'ok') : ?>
                             <button type="button" class="button button-secondary button-small spam-button" data-id="<?php echo esc_attr($row->id); ?>">Spam</button>
@@ -98,8 +190,25 @@ function custom_registrations_page_content() {
 // =================================================================================
 function crf_ajax_router() { check_ajax_referer('crf_crm_nonce'); if (!current_user_can('manage_options')) { wp_send_json_error(['message' => 'Permission denied.'], 403); } $action = isset($_POST['route']) ? sanitize_key($_POST['route']) : ''; global $wpdb; switch ($action) { case 'update_status': $wpdb->update($wpdb->prefix . 'custom_registrations', ['status' => sanitize_text_field($_POST['status'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'update_flag': $wpdb->update($wpdb->prefix . 'custom_registrations', ['flag' => sanitize_text_field($_POST['flag'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'get_notes': $notes = $wpdb->get_results($wpdb->prepare("SELECT n.*, u.display_name FROM {$wpdb->prefix}custom_registration_notes n JOIN {$wpdb->users} u ON n.author_id = u.ID WHERE submission_id = %d ORDER BY created_at DESC", intval($_POST['id']))); wp_send_json_success($notes); break; case 'add_note': if (!empty($_POST['content'])) { $wpdb->insert($wpdb->prefix . 'custom_registration_notes', ['submission_id' => intval($_POST['id']), 'note_content' => sanitize_textarea_field($_POST['content']), 'author_id' => get_current_user_id()]); } wp_send_json_success(); break; case 'delete_note': $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['note_id' => intval($_POST['note_id'])]); wp_send_json_success(); break; case 'update_tags': $tags = isset($_POST['tags']) ? implode(',', array_map('sanitize_text_field', $_POST['tags'])) : ''; $wpdb->update($wpdb->prefix . 'custom_registrations', ['tags' => $tags], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'delete_submission': $id = intval($_POST['id']); $wpdb->delete($wpdb->prefix . 'custom_registrations', ['id' => $id]); $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['submission_id' => $id]); wp_send_json_success(); break; case 'manage_master_tags': $tags = isset($_POST['tags']) ? json_decode(stripslashes($_POST['tags']), true) : []; $sanitized_tags = []; foreach ($tags as $tag) { if (!empty($tag['name'])) { $sanitized_tags[] = ['name' => sanitize_text_field($tag['name']), 'color' => sanitize_hex_color($tag['color'])]; } } update_option('crf_master_tags', $sanitized_tags); wp_send_json_success($sanitized_tags); break; } wp_send_json_error(['message' => 'Invalid action.']); }
 add_action('wp_ajax_crf_router', 'crf_ajax_router');
-function crf_enqueue_admin_assets($hook) { if ($hook != 'toplevel_page_custom-registrations') { return; } $style_path = plugin_dir_path(__FILE__) . 'assets/css/admin-style.css'; if (file_exists($style_path)) { wp_enqueue_style('crf-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], filemtime($style_path)); } }
+
+function crf_enqueue_admin_assets($hook) {
+    if ($hook != 'toplevel_page_custom-registrations') {
+        return;
+    }
+    $style_path = plugin_dir_path(__FILE__) . 'assets/css/admin-style.css';
+    if (file_exists($style_path)) {
+        wp_enqueue_style('crf-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], filemtime($style_path));
+    }
+
+    // Enqueue a new JS file for the notification counter
+    wp_enqueue_script('crf-admin-notifications', plugin_dir_url(__FILE__) . 'assets/js/admin-notifications.js', ['jquery'], null, true);
+    wp_localize_script('crf-admin-notifications', 'crf_ajax_object', [
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce'    => wp_create_nonce('crf_get_new_submission_count'),
+    ]);
+}
 add_action('admin_enqueue_scripts', 'crf_enqueue_admin_assets');
+
 
 function crf_add_admin_footer_js() {
     if (!isset(get_current_screen()->id) || get_current_screen()->id !== 'toplevel_page_custom-registrations') { return; }
@@ -111,13 +220,13 @@ function crf_add_admin_footer_js() {
         function doAjax(route, data, callback) { $.post(ajax_url, { action: 'crf_router', _ajax_nonce: nonce, route: route, ...data }, callback || (() => {}), 'json'); }
         $('#import-btn').on('click', () => $('#crf-import-form').slideToggle());
         $(document).on('change', '.status-changer', function() { doAjax('update_status', { id: $(this).data('id'), status: $(this).val() }); });
-        
-        $(document).on('click', '.spam-button', function() { 
-            if (confirm('Are you sure you want to mark this as spam?')) { 
+
+        $(document).on('click', '.spam-button', function() {
+            if (confirm('Are you sure you want to mark this as spam?')) {
                 const button = $(this);
-                const row = button.closest('tr'); 
-                doAjax('update_flag', { id: button.data('id'), flag: 'spam' }, () => row.fadeOut(500, () => row.remove())); 
-            } 
+                const row = button.closest('tr');
+                doAjax('update_flag', { id: button.data('id'), flag: 'spam' }, () => row.fadeOut(500, () => row.remove()));
+            }
         });
 
         // MODIFICATION START: Added click handler for the new "Not Spam" button.
@@ -155,6 +264,16 @@ function crf_add_admin_footer_js() {
 }
 add_action('admin_footer', 'crf_add_admin_footer_js');
 
+// New function to handle the AJAX request for the new submission count
+function crf_get_new_submission_count() {
+    check_ajax_referer('crf_get_new_submission_count', 'nonce');
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'custom_registrations';
+    $count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE status = 'New'");
+    wp_send_json_success($count);
+}
+add_action('wp_ajax_crf_get_new_submission_count', 'crf_get_new_submission_count');
+
 // =================================================================================
 // 7. RECAPTCHA SETTINGS PAGE (Unchanged)
 // =================================================================================
@@ -167,3 +286,41 @@ add_action('admin_init', 'crf_register_settings');
 function crf_recaptcha_section_callback() { echo '<p>Enter the Google reCAPTCHA v2 ("I\'m not a robot") keys for your site. You can get them from the <a href="https://www.google.com/recaptcha/admin" target="_blank">Google reCAPTCHA admin console</a>.</p>'; }
 function crf_render_site_key_field() { $value = get_option('crf_recaptcha_site_key', ''); echo '<input type="text" name="crf_recaptcha_site_key" value="' . esc_attr($value) . '" class="regular-text">'; }
 function crf_render_secret_key_field() { $value = get_option('crf_recaptcha_secret_key', ''); echo '<input type="text" name="crf_recaptcha_secret_key" value="' . esc_attr($value) . '" class="regular-text">'; }
+
+// Create a new JavaScript file in your plugin's assets/js/ directory named admin-notifications.js
+// and add the following code to it.
+
+/*
+jQuery(document).ready(function($) {
+    function updateSubmissionCounter() {
+        $.ajax({
+            url: crf_ajax_object.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'crf_get_new_submission_count',
+                nonce: crf_ajax_object.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var count = parseInt(response.data, 10);
+                    var menu_item = $('#toplevel_page_custom-registrations .wp-menu-name');
+                    var counter = menu_item.find('.awaiting-mod');
+
+                    if (count > 0) {
+                        if (counter.length) {
+                            counter.find('.pending-count').text(count);
+                        } else {
+                            menu_item.append(' <span class="awaiting-mod"><span class="pending-count">' + count + '</span></span>');
+                        }
+                    } else {
+                        counter.remove();
+                    }
+                }
+            }
+        });
+    }
+
+    // Check for new submissions every 30 seconds
+    setInterval(updateSubmissionCounter, 30000);
+});
+*/
