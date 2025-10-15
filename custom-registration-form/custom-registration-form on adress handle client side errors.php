@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Custom Registration Form CRM
  * Description:       A powerful plugin that creates a custom form and a full-featured CRM with multi-image support and Import/Export.
- * Version:           6.6
+ * Version:           6.7
  * Author:            Your Name
  */
 
@@ -71,12 +71,16 @@ function custom_registrations_page_content() {
                     <td class="action-buttons">
                         <button type="button" class="button button-secondary button-small view-notes-btn" data-id="<?php echo esc_attr($row->id); ?>">Notes</button>
                         <button type="button" class="button button-secondary button-small edit-tags-btn" data-id="<?php echo esc_attr($row->id); ?>" data-tags="<?php echo esc_attr($row->tags); ?>">Tags</button>
+                        
+                        <!-- MODIFICATION START: Conditionally show Spam/Not Spam buttons -->
                         <?php if ($current_flag_view === 'ok') : ?>
                             <button type="button" class="button button-secondary button-small spam-button" data-id="<?php echo esc_attr($row->id); ?>">Spam</button>
+                        <?php else : // We are in the spam view ?>
+                            <button type="button" class="button button-secondary button-small spam-button not-spam-button" data-id="<?php echo esc_attr($row->id); ?>">Not Spam</button>
                         <?php endif; ?>
-                        <!-- MODIFICATION START: Added the new Delete button -->
-                        <button type="button" class="button button-link-delete button-small delete-button" data-id="<?php echo esc_attr($row->id); ?>">Delete</button>
                         <!-- MODIFICATION END -->
+
+                        <button type="button" class="button button-secondary button-small spam-button" data-id="<?php echo esc_attr($row->id); ?>">Delete</button>
                     </td>
                 </tr>
                 <?php endforeach; endif; ?>
@@ -92,36 +96,8 @@ function custom_registrations_page_content() {
 // =================================================================================
 // 6. ADMIN AJAX & ASSETS
 // =================================================================================
-function crf_ajax_router() {
-    check_ajax_referer('crf_crm_nonce');
-    if (!current_user_can('manage_options')) { wp_send_json_error(['message' => 'Permission denied.'], 403); }
-    $action = isset($_POST['route']) ? sanitize_key($_POST['route']) : '';
-    global $wpdb;
-    switch ($action) {
-        case 'update_status': $wpdb->update($wpdb->prefix . 'custom_registrations', ['status' => sanitize_text_field($_POST['status'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break;
-        case 'update_flag': $wpdb->update($wpdb->prefix . 'custom_registrations', ['flag' => sanitize_text_field($_POST['flag'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break;
-        case 'get_notes': $notes = $wpdb->get_results($wpdb->prepare("SELECT n.*, u.display_name FROM {$wpdb->prefix}custom_registration_notes n JOIN {$wpdb->users} u ON n.author_id = u.ID WHERE submission_id = %d ORDER BY created_at DESC", intval($_POST['id']))); wp_send_json_success($notes); break;
-        case 'add_note': if (!empty($_POST['content'])) { $wpdb->insert($wpdb->prefix . 'custom_registration_notes', ['submission_id' => intval($_POST['id']), 'note_content' => sanitize_textarea_field($_POST['content']), 'author_id' => get_current_user_id()]); } wp_send_json_success(); break;
-        case 'delete_note': $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['note_id' => intval($_POST['note_id'])]); wp_send_json_success(); break;
-        case 'update_tags': $tags = isset($_POST['tags']) ? implode(',', array_map('sanitize_text_field', $_POST['tags'])) : ''; $wpdb->update($wpdb->prefix . 'custom_registrations', ['tags' => $tags], ['id' => intval($_POST['id'])]); wp_send_json_success(); break;
-        
-        // MODIFICATION START: Added new case for deleting a submission.
-        case 'delete_submission':
-            $id = intval($_POST['id']);
-            // Delete the main submission record
-            $wpdb->delete($wpdb->prefix . 'custom_registrations', ['id' => $id]);
-            // Also delete any associated notes
-            $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['submission_id' => $id]);
-            wp_send_json_success();
-            break;
-        // MODIFICATION END
-
-        case 'manage_master_tags': $tags = isset($_POST['tags']) ? json_decode(stripslashes($_POST['tags']), true) : []; $sanitized_tags = []; foreach ($tags as $tag) { if (!empty($tag['name'])) { $sanitized_tags[] = ['name' => sanitize_text_field($tag['name']), 'color' => sanitize_hex_color($tag['color'])]; } } update_option('crf_master_tags', $sanitized_tags); wp_send_json_success($sanitized_tags); break;
-    }
-    wp_send_json_error(['message' => 'Invalid action.']);
-}
+function crf_ajax_router() { check_ajax_referer('crf_crm_nonce'); if (!current_user_can('manage_options')) { wp_send_json_error(['message' => 'Permission denied.'], 403); } $action = isset($_POST['route']) ? sanitize_key($_POST['route']) : ''; global $wpdb; switch ($action) { case 'update_status': $wpdb->update($wpdb->prefix . 'custom_registrations', ['status' => sanitize_text_field($_POST['status'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'update_flag': $wpdb->update($wpdb->prefix . 'custom_registrations', ['flag' => sanitize_text_field($_POST['flag'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'get_notes': $notes = $wpdb->get_results($wpdb->prepare("SELECT n.*, u.display_name FROM {$wpdb->prefix}custom_registration_notes n JOIN {$wpdb->users} u ON n.author_id = u.ID WHERE submission_id = %d ORDER BY created_at DESC", intval($_POST['id']))); wp_send_json_success($notes); break; case 'add_note': if (!empty($_POST['content'])) { $wpdb->insert($wpdb->prefix . 'custom_registration_notes', ['submission_id' => intval($_POST['id']), 'note_content' => sanitize_textarea_field($_POST['content']), 'author_id' => get_current_user_id()]); } wp_send_json_success(); break; case 'delete_note': $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['note_id' => intval($_POST['note_id'])]); wp_send_json_success(); break; case 'update_tags': $tags = isset($_POST['tags']) ? implode(',', array_map('sanitize_text_field', $_POST['tags'])) : ''; $wpdb->update($wpdb->prefix . 'custom_registrations', ['tags' => $tags], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'delete_submission': $id = intval($_POST['id']); $wpdb->delete($wpdb->prefix . 'custom_registrations', ['id' => $id]); $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['submission_id' => $id]); wp_send_json_success(); break; case 'manage_master_tags': $tags = isset($_POST['tags']) ? json_decode(stripslashes($_POST['tags']), true) : []; $sanitized_tags = []; foreach ($tags as $tag) { if (!empty($tag['name'])) { $sanitized_tags[] = ['name' => sanitize_text_field($tag['name']), 'color' => sanitize_hex_color($tag['color'])]; } } update_option('crf_master_tags', $sanitized_tags); wp_send_json_success($sanitized_tags); break; } wp_send_json_error(['message' => 'Invalid action.']); }
 add_action('wp_ajax_crf_router', 'crf_ajax_router');
-
 function crf_enqueue_admin_assets($hook) { if ($hook != 'toplevel_page_custom-registrations') { return; } $style_path = plugin_dir_path(__FILE__) . 'assets/css/admin-style.css'; if (file_exists($style_path)) { wp_enqueue_style('crf-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], filemtime($style_path)); } }
 add_action('admin_enqueue_scripts', 'crf_enqueue_admin_assets');
 
@@ -136,7 +112,6 @@ function crf_add_admin_footer_js() {
         $('#import-btn').on('click', () => $('#crf-import-form').slideToggle());
         $(document).on('change', '.status-changer', function() { doAjax('update_status', { id: $(this).data('id'), status: $(this).val() }); });
         
-        // MODIFICATION START: Added confirmation dialog to the Spam button.
         $(document).on('click', '.spam-button', function() { 
             if (confirm('Are you sure you want to mark this as spam?')) { 
                 const button = $(this);
@@ -144,9 +119,17 @@ function crf_add_admin_footer_js() {
                 doAjax('update_flag', { id: button.data('id'), flag: 'spam' }, () => row.fadeOut(500, () => row.remove())); 
             } 
         });
+
+        // MODIFICATION START: Added click handler for the new "Not Spam" button.
+        $(document).on('click', '.not-spam-button', function() {
+            if (confirm('Are you sure you want to restore this submission to the active list?')) {
+                const button = $(this);
+                const row = button.closest('tr');
+                doAjax('update_flag', { id: button.data('id'), flag: 'ok' }, () => row.fadeOut(500, () => row.remove()));
+            }
+        });
         // MODIFICATION END
 
-        // MODIFICATION START: Added click handler for the new Delete button.
         $(document).on('click', '.delete-button', function() {
             if (confirm('Are you sure you want to permanently delete this submission?\nThis action cannot be undone.')) {
                 const button = $(this);
@@ -154,7 +137,6 @@ function crf_add_admin_footer_js() {
                 doAjax('delete_submission', { id: button.data('id') }, () => row.fadeOut(500, () => row.remove()));
             }
         });
-        // MODIFICATION END
 
         $('.crf-modal-close').on('click', () => $('.crf-modal').hide());
         $(document).on('click', '.view-notes-btn', function() { currentSubmissionId = $(this).data('id'); $('#notes-list').html('Loading...'); $('#notes-modal').show(); doAjax('get_notes', { id: currentSubmissionId }, (res) => { let html = res.success && res.data.length ? '' : '<p>No notes yet.</p>'; if (res.success) res.data.forEach(n => { html += `<div class="note" data-note-id="${n.note_id}"><p>${n.note_content.replace(/\n/g, '<br>')}</p><div class="note-meta">By ${n.display_name} on ${new Date(n.created_at).toLocaleString()} <a href="#" class="delete-note-btn">Delete</a></div></div>`; }); $('#notes-list').html(html); }); });
