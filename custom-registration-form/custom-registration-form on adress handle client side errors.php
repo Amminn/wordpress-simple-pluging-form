@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Custom Registration Form CRM
  * Description:       A powerful plugin that creates a custom form and a full-featured CRM with multi-image support and Import/Export.
- * Version:           6.4
+ * Version:           6.5
  * Author:            Your Name
  */
 
@@ -30,10 +30,9 @@ register_activation_hook(__FILE__, 'custom_registration_create_crm_tables');
 // =================================================================================
 function custom_registration_form_shortcode() {
     ob_start();
-    // MODIFICATION START: Added style for the new JS validation error box.
     echo '<style>#custom-registration-form{max-width:600px;margin:0 auto;padding:25px;border:1px solid #ddd;border-radius:5px;background-color:#f9f9f9;box-shadow:0 2px 5px rgba(0,0,0,0.05)}#custom-registration-form .form-group{margin-bottom:20px}#custom-registration-form label{display:block;margin-bottom:8px;font-weight:bold;color:#333}#custom-registration-form input[type=text],#custom-registration-form textarea,#custom-registration-form input[type=file]{width:100%;padding:12px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box}#custom-registration-form .form-submit input[type=submit]{background-color:#0073aa;color:#fff;padding:12px 25px;border:none;border-radius:4px;cursor:pointer;font-size:16px;transition:background-color .3s ease}.crf-message{padding:15px;margin-bottom:20px;border-radius:4px;max-width:600px;margin-left:auto;margin-right:auto}.crf-message.success{color:#155724;background-color:#d4edda;border:1px solid #c3e6cb}.crf-message.error{color:#721c24;background-color:#f8d7da;border:1px solid #f5c6cb}</style>';
-    // MODIFICATION END
-
+    
+    // MODIFICATION START: Added handling for reCAPTCHA failure message.
     if (isset($_GET['submission-status'])) {
         switch ($_GET['submission-status']) {
             case 'success':
@@ -42,84 +41,69 @@ function custom_registration_form_shortcode() {
             case 'db_error':
                 echo '<div class="crf-message error">There was a problem saving your submission. Please contact the site administrator.</div>';
                 break;
+            case 'recaptcha_failed':
+                echo '<div class="crf-message error">reCAPTCHA verification failed. Please try again.</div>';
+                break;
             case 'error':
                 echo '<div class="crf-message error">There was an error with your submission. Please check the required fields.</div>';
                 break;
         }
     }
+    // MODIFICATION END
+
+    $site_key = get_option('crf_recaptcha_site_key');
 
     ?>
     <form id="custom-registration-form" action="" method="post" enctype="multipart/form-data">
-        <!-- MODIFICATION START: Added maxlength attributes for browser-level validation. -->
         <div class="form-group"><label for="name">Name <span style="color:red;">*</span></label><input type="text" name="name" id="name" required maxlength="255"></div>
         <div class="form-group"><label for="address">Address <span style="color:red;">*</span></label><input type="text" name="address" id="address" required maxlength="1000"></div>
         <div class="form-group"><label for="phone_number">Phone Number <span style="color:red;">*</span></label><input type="text" name="phone_number" id="phone_number" required maxlength="50"></div>
-        <!-- MODIFICATION END -->
         <div class="form-group"><label for="note">Note</label><textarea name="note" id="note" rows="4" maxlength="2000"></textarea></div>
         <div class="form-group"><label for="profile_image">Profile Images (Max 2)</label><input type="file" name="profile_image[]" id="profile_image" accept="image/jpeg,image/png,image/gif" multiple></div>
         
         <?php wp_nonce_field('custom_form_submit_action', 'custom_form_nonce'); ?>
         <input type="hidden" name="custom_registration_form_submitted" value="1">
 
-        <!-- MODIFICATION START: Added a container for JavaScript validation errors. -->
-        <div id="crf-validation-message" class="crf-message error" style="display:none;"></div>
+        <!-- MODIFICATION START: Add reCAPTCHA container if Site Key is set. -->
+        <?php if (!empty($site_key)): ?>
+            <div class="form-group">
+                <div class="g-recaptcha" data-sitekey="<?php echo esc_attr($site_key); ?>"></div>
+            </div>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+        <?php endif; ?>
         <!-- MODIFICATION END -->
         
+        <div id="crf-validation-message" class="crf-message error" style="display:none;"></div>
         <div class="form-submit"><input type="submit" name="submit" value="Register"></div>
     </form>
-
-    <!-- MODIFICATION START: Added JavaScript for client-side validation. -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('custom-registration-form');
         const errorDiv = document.getElementById('crf-validation-message');
-
         form.addEventListener('submit', function(event) {
             let errors = [];
-            errorDiv.innerHTML = ''; // Clear previous errors
-
-            // 1. Validate Phone Number
+            errorDiv.innerHTML = '';
             const phoneInput = document.getElementById('phone_number');
-            const phoneRegex = /^[0-9\s\+\-\(\)]+$/; // Allows numbers, spaces, +, -, ()
+            const phoneRegex = /^[0-9\s\+\-\(\)]+$/;
             if (phoneInput.value && !phoneRegex.test(phoneInput.value)) {
-                errors.push('Please enter a valid phone number. Only numbers and characters like +, -, () are allowed.');
+                errors.push('Please enter a valid phone number.');
             }
-
-            // 2. Validate Input Lengths (redundant with maxlength but good for a single error message)
-            if (document.getElementById('name').value.length > 255) {
-                errors.push('Name cannot exceed 255 characters.');
+            if (document.getElementById('profile_image').files.length > 2) {
+                errors.push('You can upload a maximum of two images.');
             }
-            if (document.getElementById('address').value.length > 1000) {
-                errors.push('Address cannot exceed 1000 characters.');
-            }
-            if (phoneInput.value.length > 50) {
-                errors.push('Phone number cannot exceed 50 characters.');
-            }
-
-            // 3. Validate Image Count
-            const imageInput = document.getElementById('profile_image');
-            if (imageInput.files.length > 2) {
-                errors.push('You can upload a maximum of two images only.');
-            }
-
-            // If there are any errors, prevent form submission and display them
             if (errors.length > 0) {
-                event.preventDefault(); // Stop the form from submitting
+                event.preventDefault();
                 let errorHtml = '<ul>';
-                errors.forEach(function(error) {
-                    errorHtml += '<li>' + error + '</li>';
-                });
+                errors.forEach(function(error) { errorHtml += '<li>' + error + '</li>'; });
                 errorHtml += '</ul>';
                 errorDiv.innerHTML = errorHtml;
-                errorDiv.style.display = 'block'; // Make the error box visible
+                errorDiv.style.display = 'block';
             } else {
-                errorDiv.style.display = 'none'; // Hide if no errors
+                errorDiv.style.display = 'none';
             }
         });
     });
     </script>
-    <!-- MODIFICATION END -->
-
     <?php
     return ob_get_clean();
 }
@@ -133,14 +117,39 @@ function handle_custom_form_submission() {
     $current_page_url = strtok($_SERVER['REQUEST_URI'], '?');
     if (!isset($_POST['custom_form_nonce']) || !wp_verify_nonce($_POST['custom_form_nonce'], 'custom_form_submit_action')) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; }
     if (empty($_POST['name']) || empty($_POST['address']) || empty($_POST['phone_number'])) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; }
-    
-    $image_urls = [];
-    if (isset($_FILES['profile_image']) && !empty($_FILES['profile_image']['name'][0])) {
-        // Enforce server-side check for image count as well
-        if (count($_FILES['profile_image']['name']) > 2) {
-            wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); 
+
+    // MODIFICATION START: reCAPTCHA Verification
+    $secret_key = get_option('crf_recaptcha_secret_key');
+    if (!empty($secret_key)) {
+        if (!isset($_POST['g-recaptcha-response']) || empty($_POST['g-recaptcha-response'])) {
+            wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url));
             exit;
         }
+
+        $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', [
+            'body' => [
+                'secret'   => $secret_key,
+                'response' => sanitize_text_field($_POST['g-recaptcha-response']),
+                'remoteip' => $_SERVER['REMOTE_ADDR'],
+            ],
+        ]);
+
+        if (is_wp_error($response)) {
+            wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url));
+            exit;
+        }
+
+        $response_body = json_decode(wp_remote_retrieve_body($response));
+        if (!$response_body || !$response_body->success) {
+            wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url));
+            exit;
+        }
+    }
+    // MODIFICATION END
+
+    $image_urls = [];
+    if (isset($_FILES['profile_image']) && !empty($_FILES['profile_image']['name'][0])) {
+        if (count($_FILES['profile_image']['name']) > 2) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; }
         if (!function_exists('wp_handle_upload')) { require_once(ABSPATH . 'wp-admin/includes/file.php'); }
         $files = $_FILES['profile_image'];
         foreach ($files['name'] as $key => $value) {
@@ -161,14 +170,11 @@ function handle_custom_form_submission() {
         'note' => isset($_POST['note']) ? sanitize_textarea_field($_POST['note']) : '',
         'image_url' => implode(',', $image_urls)
     ];
-
     $result = $wpdb->insert($table_name, $data_to_insert);
-
     if ($result === false) {
         wp_safe_redirect(add_query_arg('submission-status', 'db_error', $current_page_url));
         exit;
     }
-
     wp_safe_redirect(add_query_arg('submission-status', 'success', $current_page_url));
     exit;
 }
@@ -178,6 +184,7 @@ add_action('init', 'handle_custom_form_submission');
 // =================================================================================
 // 4. IMPORT / EXPORT HANDLING
 // =================================================================================
+// ... (This section remains unchanged, so it's omitted for brevity)
 function crf_handle_import_export() {
     if (!current_user_can('manage_options')) { return; }
     if (isset($_GET['action']) && $_GET['action'] == 'export_csv' && isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'crf_export_nonce')) {
@@ -218,12 +225,11 @@ add_action('admin_init', 'crf_handle_import_export');
 // =================================================================================
 // 5. ADMIN AREA (CRM PAGE)
 // =================================================================================
+// ... (This section remains unchanged, so it's omitted for brevity)
 function custom_registration_admin_menu() { add_menu_page('Submissions', 'Submissions', 'manage_options', 'custom-registrations', 'custom_registrations_page_content', 'dashicons-list-view', 25); }
 add_action('admin_menu', 'custom_registration_admin_menu');
-
 function crf_show_import_notice() { if ($notice = get_transient('crf_import_notice')) { echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($notice) . '</p></div>'; delete_transient('crf_import_notice'); } }
 add_action('admin_notices', 'crf_show_import_notice');
-
 function custom_registrations_page_content() {
     global $wpdb;
     $table_submissions = $wpdb->prefix . 'custom_registrations';
@@ -248,17 +254,7 @@ function custom_registrations_page_content() {
         </form>
         <table class="wp-list-table widefat fixed striped">
             <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Address</th>
-                    <th>Note</th>
-                    <th>Images</th>
-                    <th>Contact</th>
-                    <th>Tags</th>
-                    <th>Status</th>
-                    <th>Submitted</th>
-                    <th>Actions</th>
-                </tr>
+                <tr><th>Name</th><th>Address</th><th>Note</th><th>Images</th><th>Contact</th><th>Tags</th><th>Status</th><th>Submitted</th><th>Actions</th></tr>
             </thead>
             <tbody>
                 <?php if (empty($results)) : ?> 
@@ -288,85 +284,80 @@ function custom_registrations_page_content() {
 // =================================================================================
 // 6. ADMIN AJAX & ASSETS
 // =================================================================================
-function crf_ajax_router() {
-    check_ajax_referer('crf_crm_nonce');
-    if (!current_user_can('manage_options')) { wp_send_json_error(['message' => 'Permission denied.'], 403); }
-    $action = isset($_POST['route']) ? sanitize_key($_POST['route']) : '';
-    global $wpdb;
-    switch ($action) {
-        case 'update_status': $wpdb->update($wpdb->prefix . 'custom_registrations', ['status' => sanitize_text_field($_POST['status'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break;
-        case 'update_flag': $wpdb->update($wpdb->prefix . 'custom_registrations', ['flag' => sanitize_text_field($_POST['flag'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break;
-        case 'get_notes': $notes = $wpdb->get_results($wpdb->prepare("SELECT n.*, u.display_name FROM {$wpdb->prefix}custom_registration_notes n JOIN {$wpdb->users} u ON n.author_id = u.ID WHERE submission_id = %d ORDER BY created_at DESC", intval($_POST['id']))); wp_send_json_success($notes); break;
-        case 'add_note': if (!empty($_POST['content'])) { $wpdb->insert($wpdb->prefix . 'custom_registration_notes', ['submission_id' => intval($_POST['id']), 'note_content' => sanitize_textarea_field($_POST['content']), 'author_id' => get_current_user_id()]); } wp_send_json_success(); break;
-        case 'delete_note': $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['note_id' => intval($_POST['note_id'])]); wp_send_json_success(); break;
-        case 'update_tags': $tags = isset($_POST['tags']) ? implode(',', array_map('sanitize_text_field', $_POST['tags'])) : ''; $wpdb->update($wpdb->prefix . 'custom_registrations', ['tags' => $tags], ['id' => intval($_POST['id'])]); wp_send_json_success(); break;
-        case 'manage_master_tags': $tags = isset($_POST['tags']) ? json_decode(stripslashes($_POST['tags']), true) : []; $sanitized_tags = []; foreach ($tags as $tag) { if (!empty($tag['name'])) { $sanitized_tags[] = ['name' => sanitize_text_field($tag['name']), 'color' => sanitize_hex_color($tag['color'])]; } } update_option('crf_master_tags', $sanitized_tags); wp_send_json_success($sanitized_tags); break;
-    }
-    wp_send_json_error(['message' => 'Invalid action.']);
+// ... (This section remains unchanged, so it's omitted for brevity)
+function crf_ajax_router() { check_ajax_referer('crf_crm_nonce'); if (!current_user_can('manage_options')) { wp_send_json_error(['message' => 'Permission denied.'], 403); } $action = isset($_POST['route']) ? sanitize_key($_POST['route']) : ''; global $wpdb; switch ($action) { case 'update_status': $wpdb->update($wpdb->prefix . 'custom_registrations', ['status' => sanitize_text_field($_POST['status'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'update_flag': $wpdb->update($wpdb->prefix . 'custom_registrations', ['flag' => sanitize_text_field($_POST['flag'])], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'get_notes': $notes = $wpdb->get_results($wpdb->prepare("SELECT n.*, u.display_name FROM {$wpdb->prefix}custom_registration_notes n JOIN {$wpdb->users} u ON n.author_id = u.ID WHERE submission_id = %d ORDER BY created_at DESC", intval($_POST['id']))); wp_send_json_success($notes); break; case 'add_note': if (!empty($_POST['content'])) { $wpdb->insert($wpdb->prefix . 'custom_registration_notes', ['submission_id' => intval($_POST['id']), 'note_content' => sanitize_textarea_field($_POST['content']), 'author_id' => get_current_user_id()]); } wp_send_json_success(); break; case 'delete_note': $wpdb->delete($wpdb->prefix . 'custom_registration_notes', ['note_id' => intval($_POST['note_id'])]); wp_send_json_success(); break; case 'update_tags': $tags = isset($_POST['tags']) ? implode(',', array_map('sanitize_text_field', $_POST['tags'])) : ''; $wpdb->update($wpdb->prefix . 'custom_registrations', ['tags' => $tags], ['id' => intval($_POST['id'])]); wp_send_json_success(); break; case 'manage_master_tags': $tags = isset($_POST['tags']) ? json_decode(stripslashes($_POST['tags']), true) : []; $sanitized_tags = []; foreach ($tags as $tag) { if (!empty($tag['name'])) { $sanitized_tags[] = ['name' => sanitize_text_field($tag['name']), 'color' => sanitize_hex_color($tag['color'])]; } } update_option('crf_master_tags', $sanitized_tags); wp_send_json_success($sanitized_tags); break; } wp_send_json_error(['message' => 'Invalid action.']); } add_action('wp_ajax_crf_router', 'crf_ajax_router');
+function crf_enqueue_admin_assets($hook) { if ($hook != 'toplevel_page_custom-registrations') { return; } $style_path = plugin_dir_path(__FILE__) . 'assets/css/admin-style.css'; if (file_exists($style_path)) { wp_enqueue_style('crf-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], filemtime($style_path)); } } add_action('admin_enqueue_scripts', 'crf_enqueue_admin_assets');
+function crf_add_admin_footer_js() { if (!isset(get_current_screen()->id) || get_current_screen()->id !== 'toplevel_page_custom-registrations') { return; } ?> <script type="text/javascript"> jQuery(document).ready(function($) { let currentSubmissionId, masterTags = <?php echo json_encode(get_option('crf_master_tags', [])); ?>; const ajax_url = '<?php echo admin_url('admin-ajax.php'); ?>', nonce = '<?php echo wp_create_nonce('crf_crm_nonce'); ?>'; function doAjax(route, data, callback) { $.post(ajax_url, { action: 'crf_router', _ajax_nonce: nonce, route: route, ...data }, callback || (() => {}), 'json'); } $('#import-btn').on('click', () => $('#crf-import-form').slideToggle()); $(document).on('change', '.status-changer', function() { doAjax('update_status', { id: $(this).data('id'), status: $(this).val() }); }); $(document).on('click', '.spam-button', function() { if (confirm('Are you sure you want to mark this as spam?')) { const button = $(this); const row = button.closest('tr'); doAjax('update_flag', { id: button.data('id'), flag: 'spam' }, () => row.fadeOut(500, () => row.remove())); } }); $('.crf-modal-close').on('click', () => $('.crf-modal').hide()); $(document).on('click', '.view-notes-btn', function() { currentSubmissionId = $(this).data('id'); $('#notes-list').html('Loading...'); $('#notes-modal').show(); doAjax('get_notes', { id: currentSubmissionId }, (res) => { let html = res.success && res.data.length ? '' : '<p>No notes yet.</p>'; if (res.success) res.data.forEach(n => { html += `<div class="note" data-note-id="${n.note_id}"><p>${n.note_content.replace(/\n/g, '<br>')}</p><div class="note-meta">By ${n.display_name} on ${new Date(n.created_at).toLocaleString()} <a href="#" class="delete-note-btn">Delete</a></div></div>`; }); $('#notes-list').html(html); }); }); $('#add-note-btn').on('click', function() { const content = $('#new-note-content').val(); if (content) doAjax('add_note', { id: currentSubmissionId, content: content }, () => { $('#new-note-content').val(''); $('.view-notes-btn[data-id="' + currentSubmissionId + '"]').click(); }); }); $(document).on('click', '.delete-note-btn', function(e) { e.preventDefault(); if (confirm('Delete this note?')) { const noteDiv = $(this).closest('.note'); doAjax('delete_note', { note_id: noteDiv.data('note-id') }, () => noteDiv.remove()); } }); $(document).on('click', '.edit-tags-btn', function() { currentSubmissionId = $(this).data('id'); const currentTags = ($(this).data('tags') || '').toString().split(','); let html = ''; masterTags.forEach(tag => { html += `<div><label><input type="checkbox" class="crf-tag-checkbox" value="${tag.name}" ${currentTags.includes(tag.name) ? 'checked' : ''}> ${tag.name}</label></div>`; }); $('#tags-checklist').html(html); $('#tags-modal').show(); }); $('#save-tags-btn').on('click', () => { const tags = []; $('.crf-tag-checkbox:checked').each(function() { tags.push($(this).val()); }); doAjax('update_tags', { id: currentSubmissionId, tags: tags }, () => location.reload()); }); function renderMasterTags() { let html = ''; masterTags.forEach((tag, i) => { html += `<div class="tag-row" data-index="${i}"><input type="text" class="master-tag-name" value="${tag.name}"><input type="color" class="master-tag-color" value="${tag.color}"><button type="button" class="button button-link-delete remove-master-tag-btn">Remove</button></div>`; }); $('#master-tags-list').html(html); } $('#manage-tags-btn').on('click', () => { renderMasterTags(); $('#manage-tags-modal').show(); }); $('#add-master-tag-btn').on('click', function() { const name = $('#new-tag-name').val(); if (name) { masterTags.push({ name: name, color: $('#new-tag-color').val() }); $('#new-tag-name').val(''); renderMasterTags(); doAjax('manage_master_tags', { tags: JSON.stringify(masterTags) }); } }); $(document).on('click', '.remove-master-tag-btn', function() { const i = $(this).closest('.tag-row').data('index'); masterTags.splice(i, 1); renderMasterTags(); doAjax('manage_master_tags', { tags: JSON.stringify(masterTags) }); }); $(document).on('change', '.master-tag-name, .master-tag-color', function() { const i = $(this).closest('.tag-row').data('index'); masterTags[i].name = $(this).closest('.tag-row').find('.master-tag-name').val(); masterTags[i].color = $(this).closest('.tag-row').find('.master-tag-color').val(); doAjax('manage_master_tags', { tags: JSON.stringify(masterTags) }); }); }); </script> <?php } add_action('admin_footer', 'crf_add_admin_footer_js');
+
+// =================================================================================
+// 7. RECAPTCHA SETTINGS PAGE (NEW SECTION)
+// =================================================================================
+
+function crf_add_settings_page() {
+    add_options_page(
+        'Custom Form Settings',
+        'Custom Form CRM',
+        'manage_options',
+        'crf-settings',
+        'crf_render_settings_page'
+    );
 }
-add_action('wp_ajax_crf_router', 'crf_ajax_router');
+add_action('admin_menu', 'crf_add_settings_page');
 
-function crf_enqueue_admin_assets($hook) {
-    if ($hook != 'toplevel_page_custom-registrations') {
-        return;
-    }
-
-    $style_path = plugin_dir_path(__FILE__) . 'assets/css/admin-style.css';
-    if (file_exists($style_path)) {
-        wp_enqueue_style(
-            'crf-admin-style',
-            plugin_dir_url(__FILE__) . 'assets/css/admin-style.css',
-            [],
-            filemtime($style_path)
-        );
-    }
-}
-add_action('admin_enqueue_scripts', 'crf_enqueue_admin_assets');
-
-
-function crf_add_admin_footer_js() {
-    if (!isset(get_current_screen()->id) || get_current_screen()->id !== 'toplevel_page_custom-registrations') { return; }
+function crf_render_settings_page() {
     ?>
-    <script type="text/javascript">
-    jQuery(document).ready(function($) {
-        let currentSubmissionId, masterTags = <?php echo json_encode(get_option('crf_master_tags', [])); ?>;
-        const ajax_url = '<?php echo admin_url('admin-ajax.php'); ?>', nonce = '<?php echo wp_create_nonce('crf_crm_nonce'); ?>';
-        function doAjax(route, data, callback) { $.post(ajax_url, { action: 'crf_router', _ajax_nonce: nonce, route: route, ...data }, callback || (() => {}), 'json'); }
-        $('#import-btn').on('click', () => $('#crf-import-form').slideToggle());
-        $(document).on('change', '.status-changer', function() { doAjax('update_status', { id: $(this).data('id'), status: $(this).val() }); });
-        
-        $(document).on('click', '.spam-button', function() { 
-            if (confirm('Are you sure you want to mark this as spam?')) { 
-                const button = $(this);
-                const row = button.closest('tr'); 
-                doAjax('update_flag', { id: button.data('id'), flag: 'spam' }, () => row.fadeOut(500, () => row.remove())); 
-            } 
-        });
-
-        $('.crf-modal-close').on('click', () => $('.crf-modal').hide());
-        $(document).on('click', '.view-notes-btn', function() {
-            currentSubmissionId = $(this).data('id'); $('#notes-list').html('Loading...'); $('#notes-modal').show();
-            doAjax('get_notes', { id: currentSubmissionId }, (res) => {
-                let html = res.success && res.data.length ? '' : '<p>No notes yet.</p>';
-                if (res.success) res.data.forEach(n => { html += `<div class="note" data-note-id="${n.note_id}"><p>${n.note_content.replace(/\n/g, '<br>')}</p><div class="note-meta">By ${n.display_name} on ${new Date(n.created_at).toLocaleString()} <a href="#" class="delete-note-btn">Delete</a></div></div>`; });
-                $('#notes-list').html(html);
-            });
-        });
-        $('#add-note-btn').on('click', function() { const content = $('#new-note-content').val(); if (content) doAjax('add_note', { id: currentSubmissionId, content: content }, () => { $('#new-note-content').val(''); $('.view-notes-btn[data-id="' + currentSubmissionId + '"]').click(); }); });
-        $(document).on('click', '.delete-note-btn', function(e) { e.preventDefault(); if (confirm('Delete this note?')) { const noteDiv = $(this).closest('.note'); doAjax('delete_note', { note_id: noteDiv.data('note-id') }, () => noteDiv.remove()); } });
-        $(document).on('click', '.edit-tags-btn', function() {
-            currentSubmissionId = $(this).data('id'); const currentTags = ($(this).data('tags') || '').toString().split(','); let html = '';
-            masterTags.forEach(tag => { html += `<div><label><input type="checkbox" class="crf-tag-checkbox" value="${tag.name}" ${currentTags.includes(tag.name) ? 'checked' : ''}> ${tag.name}</label></div>`; });
-            $('#tags-checklist').html(html); $('#tags-modal').show();
-        });
-        $('#save-tags-btn').on('click', () => { const tags = []; $('.crf-tag-checkbox:checked').each(function() { tags.push($(this).val()); }); doAjax('update_tags', { id: currentSubmissionId, tags: tags }, () => location.reload()); });
-        function renderMasterTags() { let html = ''; masterTags.forEach((tag, i) => { html += `<div class="tag-row" data-index="${i}"><input type="text" class="master-tag-name" value="${tag.name}"><input type="color" class="master-tag-color" value="${tag.color}"><button type="button" class="button button-link-delete remove-master-tag-btn">Remove</button></div>`; }); $('#master-tags-list').html(html); }
-        $('#manage-tags-btn').on('click', () => { renderMasterTags(); $('#manage-tags-modal').show(); });
-        $('#add-master-tag-btn').on('click', function() { const name = $('#new-tag-name').val(); if (name) { masterTags.push({ name: name, color: $('#new-tag-color').val() }); $('#new-tag-name').val(''); renderMasterTags(); doAjax('manage_master_tags', { tags: JSON.stringify(masterTags) }); } });
-        $(document).on('click', '.remove-master-tag-btn', function() { const i = $(this).closest('.tag-row').data('index'); masterTags.splice(i, 1); renderMasterTags(); doAjax('manage_master_tags', { tags: JSON.stringify(masterTags) }); });
-        $(document).on('change', '.master-tag-name, .master-tag-color', function() { const i = $(this).closest('.tag-row').data('index'); masterTags[i].name = $(this).closest('.tag-row').find('.master-tag-name').val(); masterTags[i].color = $(this).closest('.tag-row').find('.master-tag-color').val(); doAjax('manage_master_tags', { tags: JSON.stringify(masterTags) }); });
-    });
-    </script>
+    <div class="wrap">
+        <h1>Custom Form CRM Settings</h1>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields('crf_settings_group');
+            do_settings_sections('crf-settings');
+            submit_button('Save Settings');
+            ?>
+        </form>
+    </div>
     <?php
 }
-add_action('admin_footer', 'crf_add_admin_footer_js');
+
+function crf_register_settings() {
+    register_setting('crf_settings_group', 'crf_recaptcha_site_key', ['sanitize_callback' => 'sanitize_text_field']);
+    register_setting('crf_settings_group', 'crf_recaptcha_secret_key', ['sanitize_callback' => 'sanitize_text_field']);
+
+    add_settings_section(
+        'crf_recaptcha_section',
+        'Google reCAPTCHA v2 Settings',
+        'crf_recaptcha_section_callback',
+        'crf-settings'
+    );
+
+    add_settings_field(
+        'crf_recaptcha_site_key_field',
+        'reCAPTCHA Site Key',
+        'crf_render_site_key_field',
+        'crf-settings',
+        'crf_recaptcha_section'
+    );
+
+    add_settings_field(
+        'crf_recaptcha_secret_key_field',
+        'reCAPTCHA Secret Key',
+        'crf_render_secret_key_field',
+        'crf-settings',
+        'crf_recaptcha_section'
+    );
+}
+add_action('admin_init', 'crf_register_settings');
+
+function crf_recaptcha_section_callback() {
+    echo '<p>Enter the Google reCAPTCHA v2 ("I\'m not a robot") keys for your site. You can get them from the <a href="https://www.google.com/recaptcha/admin" target="_blank">Google reCAPTCHA admin console</a>.</p>';
+}
+
+function crf_render_site_key_field() {
+    $value = get_option('crf_recaptcha_site_key', '');
+    echo '<input type="text" name="crf_recaptcha_site_key" value="' . esc_attr($value) . '" class="regular-text">';
+}
+
+function crf_render_secret_key_field() {
+    $value = get_option('crf_recaptcha_secret_key', '');
+    echo '<input type="text" name="crf_recaptcha_secret_key" value="' . esc_attr($value) . '" class="regular-text">';
+}
