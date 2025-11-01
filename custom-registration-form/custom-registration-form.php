@@ -58,93 +58,136 @@ register_activation_hook(__FILE__, 'custom_registration_create_crm_tables');
 // =================================================================================
 // SECTIONS 2-4 (Unchanged)
 // =================================================================================
-function custom_registration_form_shortcode() { 
-    ob_start(); 
-    if (isset($_GET['submission-status'])) { 
-        switch ($_GET['submission-status']) { 
-            case 'success': 
-                echo '<div class="crf-message success">The form was sent! We will get back to you soon.</div>'; 
-                break; 
-            case 'db_error': 
-                echo '<div class="crf-message error">There was a problem saving your submission. Please contact the site administrator.</div>'; 
-                break; 
-            case 'recaptcha_failed': 
-                echo '<div class="crf-message error">reCAPTCHA verification failed. Please try again.</div>'; 
-                break; 
-            case 'error': 
-                echo '<div class="crf-message error">There was an error with your submission. Please check the required fields.</div>'; 
-                break; 
-        } 
-    } 
-    $site_key = get_option('crf_recaptcha_site_key'); 
-    ?> 
-    <form id="custom-registration-form" class="crf-form" action="" method="post" enctype="multipart/form-data"> 
+function custom_registration_form_shortcode() {
+    ob_start();
+
+    if (isset($_GET['submission-status'])) {
+        switch ($_GET['submission-status']) {
+            case 'success':
+                echo '<div class="crf-message success">The form was sent! We will get back to you soon.</div>';
+                break;
+            case 'db_error':
+                echo '<div class="crf-message error">There was a problem saving your submission. Please contact the site administrator.</div>';
+                break;
+            case 'recaptcha_failed':
+                echo '<div class="crf-message error">reCAPTCHA verification failed. Please try again.</div>';
+                break;
+            case 'error':
+                echo '<div class="crf-message error">There was an error with your submission. Please check the required fields.</div>';
+                break;
+        }
+    }
+
+    $site_key = get_option('crf_recaptcha_site_key');
+    // Optionally, add a debug log or display to confirm the key:
+    // error_log('CRF site key: ' . print_r($site_key, true));
+
+    ?>
+    <form id="custom-registration-form" class="crf-form"
+          action="<?php echo esc_url( $_SERVER['REQUEST_URI'] ); ?>"
+          method="post"
+          enctype="multipart/form-data">
         <div class="form-group crf-form-group">
             <label for="name" class="crf-label">Name <span class="crf-required">*</span></label>
             <input type="text" name="name" id="name" class="crf-input crf-text-input" required maxlength="255">
-        </div> 
+        </div>
         <div class="form-group crf-form-group">
             <label for="address" class="crf-label">Address <span class="crf-required">*</span></label>
             <input type="text" name="address" id="address" class="crf-input crf-text-input" required maxlength="1000">
-        </div> 
+        </div>
         <div class="form-group crf-form-group">
             <label for="phone_number" class="crf-label">Phone Number <span class="crf-required">*</span></label>
             <input type="text" name="phone_number" id="phone_number" class="crf-input crf-text-input" required maxlength="50">
-        </div> 
+        </div>
         <div class="form-group crf-form-group">
             <label for="note" class="crf-label">Note</label>
             <textarea name="note" id="note" class="crf-input crf-textarea" rows="4" maxlength="2000"></textarea>
-        </div> 
+        </div>
         <div class="form-group crf-form-group">
             <label for="profile_image" class="crf-label">Profile Images (Max 2)</label>
-            <input type="file" name="profile_image[]" id="profile_image" class="crf-file-input" accept="image/jpeg,image/png,image/gif" multiple>
-        </div> 
-        <?php wp_nonce_field('custom_form_submit_action', 'custom_form_nonce'); ?> 
-        <input type="hidden" name="custom_registration_form_submitted" value="1"> 
-        <?php if (!empty($site_key)): ?> 
-        <div class="form-group crf-form-group"> 
-            <div class="g-recaptcha" data-sitekey="<?php echo esc_attr($site_key); ?>"></div> 
-        </div> 
-        <script src="https://www.google.com/recaptcha/api.js" async defer></script> 
-        <?php endif; ?> 
-        <div id="crf-validation-message" class="crf-message error" style="display:none;"></div> 
+            <input type="file" name="profile_image[]" id="profile_image"
+                   class="crf-file-input"
+                   accept="image/jpeg,image/png,image/gif"
+                   multiple>
+        </div>
+
+        <?php wp_nonce_field('custom_form_submit_action', 'custom_form_nonce'); ?>
+        <input type="hidden" name="custom_registration_form_submitted" value="1">
+
+        <div id="crf-validation-message" class="crf-message error" style="display:none;"></div>
         <div class="form-submit crf-form-submit">
-            <input type="submit" name="submit" value="Register" class="crf-submit-btn">
-        </div> 
-    </form> 
-    <script> 
-    document.addEventListener('DOMContentLoaded', function() { 
-        const form = document.getElementById('custom-registration-form'); 
-        const errorDiv = document.getElementById('crf-validation-message'); 
-        form.addEventListener('submit', function(event) { 
-            let errors = []; 
-            errorDiv.innerHTML = ''; 
-            const phoneInput = document.getElementById('phone_number'); 
-            const phoneRegex = /^[0-9\s\+\-\(\)]+$/; 
-            if (phoneInput.value && !phoneRegex.test(phoneInput.value)) { 
-                errors.push('Please enter a valid phone number.'); 
-            } 
-            if (document.getElementById('profile_image').files.length > 2) { 
-                errors.push('You can upload a maximum of two images.'); 
-            } 
-            if (errors.length > 0) { 
-                event.preventDefault(); 
-                let errorHtml = '<ul>'; 
-                errors.forEach(function(error) { 
-                    errorHtml += '<li>' + error + '</li>'; 
-                }); 
-                errorHtml += '</ul>'; 
-                errorDiv.innerHTML = errorHtml; 
-                errorDiv.style.display = 'block'; 
-            } else { 
-                errorDiv.style.display = 'none'; 
-            } 
-        }); 
-    }); 
-    </script> 
-    <?php 
-    return ob_get_clean(); 
+            <?php if (!empty($site_key)): ?>
+                <script src="https://www.google.com/recaptcha/api.js?render=<?php echo esc_attr($site_key); ?>"></script>
+                <button type="submit" id="crf-submit-btn" class="crf-submit-btn">
+                    Register
+                </button>
+            <?php else: ?>
+                <input type="submit" name="submit" value="Register" class="crf-submit-btn">
+            <?php endif; ?>
+        </div>
+    </form>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('custom-registration-form');
+    const errorDiv = document.getElementById('crf-validation-message');
+    const siteKey = "<?php echo esc_js($site_key); ?>";
+    const submitButton = document.getElementById('crf-submit-btn');
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault(); // stop normal submission
+        errorDiv.style.display = 'none';
+        errorDiv.innerHTML = '';
+
+        // Custom validation
+        const phoneInput = document.getElementById('phone_number');
+        const phoneRegex = /^[0-9\s\+\-\(\)]+$/;
+        let errors = [];
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        if (phoneInput.value && !phoneRegex.test(phoneInput.value)) {
+            errors.push('Please enter a valid phone number.');
+        }
+        if (document.getElementById('profile_image').files.length > 2) {
+            errors.push('You can upload a maximum of two images.');
+        }
+
+        if (errors.length > 0) {
+            let errorHtml = '<ul>';
+            errors.forEach(e => errorHtml += `<li>${e}</li>`);
+            errorHtml += '</ul>';
+            errorDiv.innerHTML = errorHtml;
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Execute reCAPTCHA (Invisible v2)
+        grecaptcha.ready(function() {
+            grecaptcha.execute(siteKey, {action: 'submit'}).then(function(token) {
+                // Append token and submit
+                let input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'g-recaptcha-response';
+                input.value = token;
+                form.appendChild(input);
+                form.submit();
+            }).catch(function(err) {
+                errorDiv.innerHTML = 'Error executing reCAPTCHA. Please try again.';
+                errorDiv.style.display = 'block';
+                console.error(err);
+            });
+        });
+    });
+});
+</script>
+
+    <?php
+
+    return ob_get_clean();
 }
+
 add_shortcode('custom_registration_form', 'custom_registration_form_shortcode');
 function handle_custom_form_submission() { if (!isset($_POST['custom_registration_form_submitted'])) { return; } $current_page_url = strtok($_SERVER['REQUEST_URI'], '?'); if (!isset($_POST['custom_form_nonce']) || !wp_verify_nonce($_POST['custom_form_nonce'], 'custom_form_submit_action')) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; } if (empty($_POST['name']) || empty($_POST['address']) || empty($_POST['phone_number'])) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; } $secret_key = get_option('crf_recaptcha_secret_key'); if (!empty($secret_key)) { if (!isset($_POST['g-recaptcha-response']) || empty($_POST['g-recaptcha-response'])) { wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url)); exit; } $response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', ['body' => ['secret' => $secret_key, 'response' => sanitize_text_field($_POST['g-recaptcha-response']), 'remoteip' => $_SERVER['REMOTE_ADDR'],],]); if (is_wp_error($response)) { wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url)); exit; } $response_body = json_decode(wp_remote_retrieve_body($response)); if (!$response_body || !$response_body->success) { wp_safe_redirect(add_query_arg('submission-status', 'recaptcha_failed', $current_page_url)); exit; } } $image_urls = []; if (isset($_FILES['profile_image']) && !empty($_FILES['profile_image']['name'][0])) { if (count($_FILES['profile_image']['name']) > 2) { wp_safe_redirect(add_query_arg('submission-status', 'error', $current_page_url)); exit; } if (!function_exists('wp_handle_upload')) { require_once(ABSPATH . 'wp-admin/includes/file.php'); } $files = $_FILES['profile_image']; foreach ($files['name'] as $key => $value) { if ($files['name'][$key]) { $file = ['name' => $files['name'][$key], 'type' => $files['type'][$key], 'tmp_name' => $files['tmp_name'][$key], 'error' => $files['error'][$key], 'size' => $files['size'][$key]]; $movefile = wp_handle_upload($file, ['test_form' => false]); if ($movefile && !isset($movefile['error'])) { $image_urls[] = $movefile['url']; } } } } global $wpdb; $table_name = $wpdb->prefix . 'custom_registrations'; $phone_number = sanitize_text_field($_POST['phone_number']); $existing_submission_count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name WHERE phone_number = %s", $phone_number)); $tags_to_apply = ''; if ($existing_submission_count > 0) { $tags_to_apply = 'Repeat Client'; } $data_to_insert = [ 'name' => sanitize_text_field($_POST['name']), 'address' => sanitize_text_field($_POST['address']), 'phone_number' => $phone_number, 'note' => isset($_POST['note']) ? sanitize_textarea_field($_POST['note']) : '', 'image_url' => implode(',', $image_urls), 'tags' => $tags_to_apply ]; $result = $wpdb->insert($table_name, $data_to_insert); if ($result) { $to = get_option('admin_email'); $subject = 'New Form Submission Received'; $body = "A new submission has been received.\n\n" . "Name: " . sanitize_text_field($_POST['name']) . "\n" . "Address: " . sanitize_text_field($_POST['address']) . "\n" . "Phone Number: " . $phone_number . "\n" . "Note: " . (isset($_POST['note']) ? sanitize_textarea_field($_POST['note']) : 'N/A'); wp_mail($to, $subject, $body); set_transient('crf_new_submission', true, 30 * MINUTE_IN_SECONDS); } if ($result === false) { wp_safe_redirect(add_query_arg('submission-status', 'db_error', $current_page_url)); exit; } wp_safe_redirect(add_query_arg('submission-status', 'success', $current_page_url)); exit; }
 add_action('init', 'handle_custom_form_submission');
@@ -305,3 +348,36 @@ add_action('admin_init', 'crf_register_settings');
 function crf_recaptcha_section_callback() { echo '<p>Enter the Google reCAPTCHA v2 ("I\'m not a robot") keys for your site. You can get them from the <a href="https://www.google.com/recaptcha/admin" target="_blank">Google reCAPTCHA admin console</a>.</p>'; }
 function crf_render_site_key_field() { $value = get_option('crf_recaptcha_site_key', ''); echo '<input type="text" name="crf_recaptcha_site_key" value="' . esc_attr($value) . '" class="regular-text">'; }
 function crf_render_secret_key_field() { $value = get_option('crf_recaptcha_secret_key', ''); echo '<input type="text" name="crf_recaptcha_secret_key" value="' . esc_attr($value) . '" class="regular-text">'; }
+// =================================================================================
+// 8. ENQUEUE RECAPTCHA SCRIPTS
+// =================================================================================
+function crf_enqueue_recaptcha_script() {
+    $site_key = get_option('crf_recaptcha_site_key');
+    if (empty($site_key)) return; // Don't load if not configured
+
+    // Enqueue Google's reCAPTCHA v2 Invisible API
+    wp_enqueue_script(
+        'google-recaptcha',
+        'https://www.google.com/recaptcha/api.js?onload=crfRecaptchaCallback&render=explicit',
+        [],
+        null,
+        true
+    );
+
+    // Inline script to initialize the reCAPTCHA
+    wp_add_inline_script('google-recaptcha', "
+        function crfRecaptchaCallback() {
+            const btns = document.querySelectorAll('.g-recaptcha');
+            btns.forEach(btn => {
+                const siteKey = btn.getAttribute('data-sitekey');
+                grecaptcha.render(btn, {
+                    'sitekey': siteKey,
+                    'callback': function(token) {
+                        document.getElementById('custom-registration-form').submit();
+                    }
+                });
+            });
+        }
+    ");
+}
+add_action('wp_enqueue_scripts', 'crf_enqueue_recaptcha_script');
