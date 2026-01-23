@@ -1,202 +1,159 @@
-/* Main form container */
-#custom-registration-form.crf-form {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 35px;
-  border: 1px solid #e1e8ed;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+/* Container */
+.crf-form-modern {
+    background-color: #f3f5f7; /* Light grey background */
+    padding: 22px;
+    border-radius: 8px;
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: 'Arial', sans-serif;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
 
-#custom-registration-form.crf-form:hover {
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+/* Header */
+.crf-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.crf-header h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 10px;
+}
+.crf-header p {
+    color: #6B7280;
+    font-size: 14px;
+    margin: 0;
+    letter-spacing: 0.09em;
 }
 
-/* Form groups */
-.crf-form-group {
-  margin-bottom: 24px;
-  position: relative;
+/* Section Titles (Icon + Text) */
+.crf-section-title {
+    display: flex;
+    align-items: center;
+    color: #6B7280; /* Dark grey-green */
+    font-weight: 700;
+    font-size: 14px;
+    text-transform: uppercase;
+    margin-bottom: 15px;
+    margin-top: 20px;
+}
+.crf-section-title img {
+    width: 28px;
+    height: 28px;
+    margin-right: 10px;
 }
 
-/* Labels */
-.crf-label {
-  display: block;
-  margin-bottom: 10px;
-  font-weight: 600;
-  color: #2d3748;
-  font-size: 14px;
-  letter-spacing: 0.3px;
-  transition: color 0.2s ease;
+/* Input Fields Wrapper */
+.crf-input-wrapper {
+    position: relative;
+    margin-bottom: 15px;
 }
 
-/* Required field indicator */
-.crf-required {
-  color: #e53e3e;
-  font-weight: 700;
+/* The Icons inside inputs */
+.crf-field-icon {
+    position: absolute;
+    left: 15px;
+    top: 49%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    opacity: 0.5;
+    z-index: 2;
+}
+.crf-field-icon.top-aligned {
+    top: 16px;
+    transform: none;
 }
 
-/* Text inputs and textarea */
-.crf-input.crf-text-input,
-.crf-input.crf-textarea {
-  width: 100%;
-  padding: 14px 16px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  box-sizing: border-box;
-  font-size: 15px;
-  transition: all 0.3s ease;
-  background-color: #ffffff;
-  color: #2d3748;
-}
-
-.crf-input.crf-text-input:focus,
-.crf-input.crf-textarea:focus {
-  outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
-  background-color: #f7fafc;
-}
-
-.crf-input.crf-textarea {
-  resize: vertical;
-  min-height: 100px;
-  line-height: 1.5;
-}
-
-/* File input */
-.crf-file-input {
-  width: 100%;
-  padding: 12px;
-  border: 2px dashed #cbd5e0;
-  border-radius: 8px;
-  background-color: #f7fafc;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.crf-file-input:hover {
-  border-color: #4299e1;
-  background-color: #edf2f7;
-}
-
-.crf-file-input:focus {
-  outline: none;
-  border-style: solid;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
-}
-
-/* Submit button */
-.crf-form-submit {
-  text-align: center;
-  margin-top: 30px;
-}
-
-.crf-submit-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  padding: 16px 40px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.crf-submit-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-}
-
-.crf-submit-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-/* Messages */
-.crf-message {
-  padding: 18px 20px;
-  margin-bottom: 25px;
-  border-radius: 8px;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-  font-weight: 500;
-  border: 1px solid transparent;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.crf-message.success {
-  color: #276749;
-  background-color: #f0fff4;
-  border-color: #9ae6b4;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23276749'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 15px center;
-  background-size: 20px;
-  padding-left: 50px;
-}
-
-.crf-message.error {
-  color: #c53030;
-  background-color: #fff5f5;
-  border-color: #fc8181;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c53030'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 15px center;
-  background-size: 20px;
-  padding-left: 50px;
-}
-
-/* Validation message */
-#crf-validation-message.crf-message.error {
-  background-image: none;
-  padding-left: 20px;
-}
-
-#crf-validation-message.crf-message.error ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-#crf-validation-message.crf-message.error li {
-  margin-bottom: 5px;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  #custom-registration-form.crf-form {
-    margin: 15px;
-    padding: 25px 20px;
-  }
-  
-  .crf-submit-btn {
+/* Inputs & Textarea */
+.crf-input {
     width: 100%;
-    padding: 14px 20px;
-  }
+    padding: 15px 15px 15px 45px; /* Left padding makes room for icon */
+    border: none;
+    border-radius: 6px;
+    background-color: #ffffff;
+    font-size: 14px;
+    color: #333;
+    box-sizing: border-box; /* Ensures padding doesn't break width */
+}
+.crf-input:focus {
+    outline: 2px solid #366657;
 }
 
-/* Loading state */
-.crf-submit-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
+/* File Upload - Dashed Style */
+.crf-upload-container {
+    position: relative;
+    border: 2px dashed #cbd5e0;
+    background-color: #f3f5f7;
+    border-radius: 6px;
+    text-align: center;
+    padding: 20px;
+    margin-top: 20px;
+    margin-bottom: 25px;
+    cursor: pointer;
+}
+.crf-upload-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #8898aa;
+    font-weight: 500;
+}
+.crf-upload-label img {
+    width: 24px;
+    opacity: 0.6;
+}
+/* Make the actual file input invisible but clickable over the whole area */
+.crf-file-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
 }
 
-/* Focus states for accessibility */
-.crf-input.crf-text-input:focus-visible,
-.crf-input.crf-textarea:focus-visible,
-.crf-file-input:focus-visible,
-.crf-submit-btn:focus-visible {
-  outline: 2px solid #4299e1;
-  outline-offset: 2px;
+/* Submit Button */
+.crf-submit-btn {
+    width: 100%;
+    background-color: #366657; /* The specific dark green */
+    color: white;
+    border: none;
+    padding: 18px;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+     letter-spacing: 0.05em;
+    gap: 10px;
+    transition: background 0.3s;
+}
+.crf-submit-btn:hover {
+    background-color: #2b5246;
+}
+
+/* Privacy Footer */
+.crf-privacy-footer {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+}
+.crf-footer-icon {
+    width: 18px;
+    height: 18px;
+    opacity: 0.6;
+    position: static; 
+    transform: none;
 }
